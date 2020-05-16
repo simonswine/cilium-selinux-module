@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  annotations:
+  labels:
+    app: cilium-selinux-module
+  name: cilium-selinux-module
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: cilium-selinux-module
+  template:
+    metadata:
+      labels:
+        app: cilium-selinux-module
+    spec:
+      initContainers:
+      - name: install-selinux-module
+        image: simonswine/cilium-selinux-module:0.1
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 10m
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /etc/selinux
+          name: etc-selinux
+        - mountPath: /var/lib/selinux
+          name: var-lib-selinux
+      containers:
+      - name: wait-forever
+        image: busybox:1.31.1
+        command:
+          - /bin/sh
+          - -c
+          - |
+            # wait forever and exit cleanly
+            sleep infinity & PID=$!
+            trap "kill $PID" INT TERM
+            wait
+      hostPID: true
+      hostNetwork: true
+      tolerations:
+      - operator: Exists
+      nodeSelector:
+        kubernetes.io/os: linux
+      priorityClassName: system-node-critical
+      restartPolicy: Always
+      volumes:
+      - hostPath:
+          path: /etc/selinux
+          type: Directory
+        name: etc-selinux
+      - hostPath:
+          path: /var/lib/selinux
+          type: Directory
+        name: var-lib-selinux
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
